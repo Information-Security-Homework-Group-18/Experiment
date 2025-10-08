@@ -319,7 +319,7 @@ class S_DESGUI:
             root (Tk): Tkinter主窗口对象
         """
         self.root = root
-        self.root.title("S-DES 加密解密工具 (课程标准版)")
+        self.root.title("S-DES 加密解密工具")
         self.root.geometry("800x600")
         self.sdes = S_DES()
         self.create_widgets()
@@ -330,7 +330,7 @@ class S_DESGUI:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # 标题
-        title_label = ttk.Label(main_frame, text="S-DES 算法实现 (课程标准版)", font=("Arial", 16, "bold"))
+        title_label = ttk.Label(main_frame, text="S-DES 算法实现", font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=10)
 
         # 密钥输入
@@ -388,9 +388,18 @@ class S_DESGUI:
                 output = f"明文: {plaintext}\n密文: {ciphertext}"
             else:
                 ciphertext_binary = self.sdes.encrypt_ascii(plaintext)
-                chunks = [ciphertext_binary[i:i+8] for i in range(0, len(ciphertext_binary), 8)]
+                chunks = [ciphertext_binary[i:i + 8] for i in range(0, len(ciphertext_binary), 8)]
                 ciphertext_display = ' '.join(chunks)
-                output = f"明文 (ASCII): {plaintext}\n密文 (二进制): {ciphertext_display}"
+
+                # 添加ASCII密文输出
+                ascii_ciphertext = ""
+                try:
+                    for i in range(0, len(ciphertext_binary), 8):
+                        byte = ciphertext_binary[i:i + 8]
+                        ascii_ciphertext += chr(int(byte, 2))
+                    output = f"明文 (ASCII): {plaintext}\n密文 (二进制): {ciphertext_display}\n密文 (ASCII): {ascii_ciphertext}\n"
+                except ValueError:
+                    output = f"明文 (ASCII): {plaintext}\n密文 (二进制): {ciphertext_display}\n密文 (ASCII): [包含非可打印字符]\n"
 
             self.output_text.delete(1.0, tk.END)
             self.output_text.insert(tk.END, output)
