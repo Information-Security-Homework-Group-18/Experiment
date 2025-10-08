@@ -72,6 +72,9 @@ class S_DES:
         left_shifted_1 = left_half[1:] + left_half[0]
         right_shifted_1 = right_half[1:] + right_half[0]
 
+        # 调试输出：验证第一次左移
+        print(f"[DEBUG] 第一次左移后: 左半部分={left_shifted_1}, 右半部分={right_shifted_1}")
+
         # 步骤4: 生成k1
         merged_1 = left_shifted_1 + right_shifted_1
         k1 = ''.join([merged_1[i - 1] for i in self.P8])
@@ -79,6 +82,9 @@ class S_DES:
         # 步骤5: 第二次左移2位
         left_shifted_2 = left_shifted_1[2:] + left_shifted_1[:2]
         right_shifted_2 = right_shifted_1[2:] + right_shifted_1[:2]
+
+        # 调试输出：验证第二次左移
+        print(f"[DEBUG] 第二次左移后: 左半部分={left_shifted_2}, 右半部分={right_shifted_2}")
 
         # 步骤6: 生成k2
         merged_2 = left_shifted_2 + right_shifted_2
