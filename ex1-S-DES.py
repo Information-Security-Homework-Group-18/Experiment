@@ -1,24 +1,27 @@
+# ============================
+# S-DES 算法核心实现
+# ============================
+
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import threading
 import time
 
-# ============================
-# S-DES 算法核心实现
-# ============================
 
 class S_DES:
-    """S-DES 加密解密算法类，实现课程标准版简化 DES 算法"""
+    """S-DES 加密解密算法类，实现标准版简化 DES 算法"""
 
     # 固定置换表定义
-    P10 = [3, 5, 2, 7, 4, 10, 1, 9, 8, 6]        # 10位密钥初始置换表，用于密钥扩展
-    P8 = [6, 3, 7, 4, 8, 5, 10, 9]               # 8位子密钥压缩置换表，从10位中间密钥生成8位子密钥
-    IP = [2, 6, 3, 1, 4, 8, 5, 7]                # 初始置换表，用于明文预处理
-    IP_INV = [4, 1, 3, 5, 7, 2, 8, 6]            # 最终逆置换表，用于输出密文/明文
-    EPBOX = [4, 1, 2, 3, 2, 3, 4, 1]             # 扩展置换表，将4位右半部分扩展为8位
-    SPBOX = [2, 4, 3, 1]                         # 置换盒，对S盒输出结果进行位置重排
+    P10 = [3, 5, 2, 7, 4, 10, 1, 9, 8, 6]  # 10位密钥初始置换表
+    P8 = [6, 3, 7, 4, 8, 5, 10, 9]  # 8位子密钥压缩置换表
+    IP = [2, 6, 3, 1, 4, 8, 5, 7]  # 初始置换表
+    IP_INV = [4, 1, 3, 5, 7, 2, 8, 6]  # 最终逆置换表
+    EPBOX = [4, 1, 2, 3, 2, 3, 4, 1]  # 扩展置换表
+    SPBOX = [2, 4, 3, 1]  # 置换盒
+    LEFT_SHIFT1 = [2, 3, 4, 5, 1]  # 左移1位
+    LEFT_SHIFT2 = [3, 4, 5, 1, 2]  # 左移2位
 
-    # S-Box 查找表（4x4矩阵）
+    # S-Box 定义
     SBOX1 = [
         [1, 0, 3, 2],
         [3, 2, 1, 0],
@@ -35,8 +38,18 @@ class S_DES:
 
     def __init__(self):
         """初始化S-DES算法实例，包含密钥和子密钥存储"""
-        self.key = None          # 存储原始10位密钥
-        self.subkeys = []        # 存储生成的两个8位子密钥 [k1, k2]
+        self.key = None  # 存储原始10位密钥（列表形式）
+        self.subkeys = []  # 存储生成的两个8位子密钥 [k1, k2]（列表形式）
+
+    @staticmethod
+    def permute(block, permutation):
+        """按置换表对数据块进行置换"""
+        return [block[i - 1] for i in permutation]
+
+    @staticmethod
+    def left_shift(block, shift_table):
+        """按移位表进行左移"""
+        return [block[i - 1] for i in shift_table]
 
     def set_key(self, key_str):
         """设置并验证加密密钥
@@ -49,133 +62,77 @@ class S_DES:
         """
         if len(key_str) != 10 or not all(b in '01' for b in key_str):
             raise ValueError("密钥必须是10位二进制字符串")
-        self.key = key_str
+        self.key = [int(bit) for bit in key_str]
         self._generate_subkeys()
 
     def _generate_subkeys(self):
-        """根据初始密钥生成两轮加密所需的子密钥
+        """根据初始密钥生成两轮加密所需的子密钥"""
+        # P10置换
+        p10_key = self.permute(self.key, self.P10)
 
-        执行流程：
-        1. 应用P10置换进行密钥初始打乱
-        2. 分割为左右两部分并分别进行左移操作
-        3. 通过P8置换生成第一个子密钥k1
-        4. 对移位后的结果再次左移并生成第二个子密钥k2
-        """
-        # 步骤1: P10置换
-        p10_result = ''.join([self.key[i - 1] for i in self.P10])
+        # 分为左右两部分
+        left = p10_key[:5]
+        right = p10_key[5:]
 
-        # 步骤2: 分割为左右两部分
-        left_half = p10_result[:5]
-        right_half = p10_result[5:]
+        # 生成k1
+        left1 = self.left_shift(left, self.LEFT_SHIFT1)
+        right1 = self.left_shift(right, self.LEFT_SHIFT1)
+        k1 = self.permute(left1 + right1, self.P8)
 
-        # 步骤3: 第一次左移1位
-        left_shifted_1 = left_half[1:] + left_half[0]
-        right_shifted_1 = right_half[1:] + right_half[0]
-
-        # 调试输出：验证第一次左移
-        print(f"[DEBUG] 第一次左移后: 左半部分={left_shifted_1}, 右半部分={right_shifted_1}")
-
-        # 步骤4: 生成k1
-        merged_1 = left_shifted_1 + right_shifted_1
-        k1 = ''.join([merged_1[i - 1] for i in self.P8])
-
-        # 步骤5: 第二次左移2位
-        left_shifted_2 = left_shifted_1[2:] + left_shifted_1[:2]
-        right_shifted_2 = right_shifted_1[2:] + right_shifted_1[:2]
-
-        # 调试输出：验证第二次左移
-        print(f"[DEBUG] 第二次左移后: 左半部分={left_shifted_2}, 右半部分={right_shifted_2}")
-
-        # 步骤6: 生成k2
-        merged_2 = left_shifted_2 + right_shifted_2
-        k2 = ''.join([merged_2[i - 1] for i in self.P8])
+        # 生成k2
+        left2 = self.left_shift(left1, self.LEFT_SHIFT2)
+        right2 = self.left_shift(right1, self.LEFT_SHIFT2)
+        k2 = self.permute(left2 + right2, self.P8)
 
         self.subkeys = [k1, k2]
 
-    def _xor(self, a, b):
-        """对两个等长二进制字符串执行按位异或操作
-
-        Args:
-            a (str): 第一个二进制字符串
-            b (str): 第二个二进制字符串
-
-        Returns:
-            str: 异或结果的二进制字符串
-        """
-        return ''.join('1' if x != y else '0' for x, y in zip(a, b))
+    @staticmethod
+    def _xor(a, b):
+        """对两个等长二进制列表执行按位异或操作"""
+        return [a[i] ^ b[i] for i in range(len(a))]
 
     def _sbox_lookup(self, sbox, input_bits):
-        """在指定S-Box中查找对应的输出值
-
-        S-Box 查找规则：
-        - 前后两位确定行号（二进制转十进制）
-        - 中间两位确定列号（二进制转十进制）
-        - 返回对应位置的值并转换为2位二进制
-
-        Args:
-            sbox (List[List[int]]): 使用的S-Box查找表
-            input_bits (str): 4位输入二进制字符串
-
-        Returns:
-            str: 2位二进制输出结果
-        """
-        row = int(input_bits[0] + input_bits[3], 2)  # 第1位和第4位组成行号
-        col = int(input_bits[1] + input_bits[2], 2)  # 第2位和第3位组成列号
+        """在指定S-Box中查找对应的输出值"""
+        row = input_bits[0] * 2 + input_bits[3]
+        col = input_bits[1] * 2 + input_bits[2]
         value = sbox[row][col]
-        return format(value, '02b')  # 转换为2位二进制输出
+        return [(value >> 1) & 1, value & 1]
 
-    def _f_function(self, right_half, subkey):
-        """Feistel函数F(R, K)实现
-
-        执行步骤：
-        1. 扩展置换EPBox将4位扩展为8位
-        2. 与子密钥进行异或运算
-        3. 分为两组4位分别通过不同S-Box
-        4. 合并S-Box输出并应用SPBox置换
-
-        Args:
-            right_half (str): 4位右半部分数据
-            subkey (str): 8位子密钥
-
-        Returns:
-            str: 4位函数运算结果
-        """
+    def _f_function(self, right, subkey):
+        """Feistel函数F(R, K)实现"""
         # 扩展置换
-        expanded = ''.join([right_half[i - 1] for i in self.EPBOX])
-        # 异或运算
+        expanded = self.permute(right, self.EPBOX)
+
+        # 与子密钥异或
         xor_result = self._xor(expanded, subkey)
-        # S-Box 处理
-        sbox1_output = self._sbox_lookup(self.SBOX1, xor_result[:4])
-        sbox2_output = self._sbox_lookup(self.SBOX2, xor_result[4:])
-        # SPBox 置换
-        combined = sbox1_output + sbox2_output
-        spboxed = ''.join([combined[i - 1] for i in self.SPBOX])
-        return spboxed
 
-    def _feistel_round(self, data, subkey):
-        """执行单轮Feistel网络结构
+        # S盒替换
+        s1_input = xor_result[:4]
+        s2_input = xor_result[4:]
 
-        Args:
-            data (str): 8位输入数据
-            subkey (str): 当前使用的8位子密钥
+        # 计算S1盒输出
+        s1_row = s1_input[0] * 2 + s1_input[3]
+        s1_col = s1_input[1] * 2 + s1_input[2]
+        s1_out = self.SBOX1[s1_row][s1_col]
+        s1_bits = [(s1_out >> 1) & 1, s1_out & 1]
 
-        Returns:
-            str: 8位处理后的输出数据
-        """
-        left_half = data[:4]
-        right_half = data[4:]
-        f_output = self._f_function(right_half, subkey)
-        new_left = self._xor(left_half, f_output)
-        return right_half + new_left  # 自动完成左右交换
+        # 计算S2盒输出
+        s2_row = s2_input[0] * 2 + s2_input[3]
+        s2_col = s2_input[1] * 2 + s2_input[2]
+        s2_out = self.SBOX2[s2_row][s2_col]
+        s2_bits = [(s2_out >> 1) & 1, s2_out & 1]
 
-    def encrypt(self, plaintext):
+        # SP盒置换
+        sp_input = s1_bits + s2_bits
+        sp_output = self.permute(sp_input, self.SPBOX)
+
+        return sp_output
+
+    def encrypt(self, plaintext_str):
         """加密8位二进制明文
 
-        加密流程：
-        IP(P) -> F(R,K1) -> SW -> F(R,K2) -> IP^{-1}
-
         Args:
-            plaintext (str): 8位二进制明文字符串
+            plaintext_str (str): 8位二进制明文字符串
 
         Returns:
             str: 8位二进制密文字符串
@@ -183,30 +140,44 @@ class S_DES:
         Raises:
             ValueError: 输入格式不符合要求时抛出
         """
-        if len(plaintext) != 8 or not all(b in '01' for b in plaintext):
+        if len(plaintext_str) != 8 or not all(b in '01' for b in plaintext_str):
             raise ValueError("明文必须是8位二进制字符串")
 
+        # 转换为二进制列表
+        plaintext = [int(bit) for bit in plaintext_str]
+
+        # 生成子密钥
+        k1, k2 = self.subkeys
+
         # 初始置换
-        ip_result = ''.join([plaintext[i - 1] for i in self.IP])
+        ip_result = self.permute(plaintext, self.IP)
+        left, right = ip_result[:4], ip_result[4:]
 
-        # 第一轮Feistel
-        round1_result = self._feistel_round(ip_result, self.subkeys[0])
+        # 第一轮Feistel网络
+        f_output = self._f_function(right, k1)
+        new_left = self._xor(left, f_output)
+        new_right = right
 
-        # 第二轮Feistel
-        round2_result = self._feistel_round(round1_result, self.subkeys[1])
+        # 交换
+        left, right = new_right, new_left
 
-        # 最终逆置换
-        ciphertext = ''.join([round2_result[i - 1] for i in self.IP_INV])
-        return ciphertext
+        # 第二轮Feistel网络
+        f_output = self._f_function(right, k2)
+        new_left = self._xor(left, f_output)
+        new_right = right
 
-    def decrypt(self, ciphertext):
+        # 组合并进行最终置换
+        pre_output = new_left + new_right
+        ciphertext = self.permute(pre_output, self.IP_INV)
+
+        # 转换为字符串返回
+        return ''.join(str(bit) for bit in ciphertext)
+
+    def decrypt(self, ciphertext_str):
         """解密8位二进制密文
 
-        解密流程：
-        IP(C) -> F(R,K2) -> SW -> F(R,K1) -> IP^{-1}
-
         Args:
-            ciphertext (str): 8位二进制密文字符串
+            ciphertext_str (str): 8位二进制密文字符串
 
         Returns:
             str: 8位二进制明文字符串
@@ -214,21 +185,38 @@ class S_DES:
         Raises:
             ValueError: 输入格式不符合要求时抛出
         """
-        if len(ciphertext) != 8 or not all(b in '01' for b in ciphertext):
+        if len(ciphertext_str) != 8 or not all(b in '01' for b in ciphertext_str):
             raise ValueError("密文必须是8位二进制字符串")
 
+        # 转换为二进制列表
+        ciphertext = [int(bit) for bit in ciphertext_str]
+
+        # 生成子密钥
+        k1, k2 = self.subkeys
+
         # 初始置换
-        ip_result = ''.join([ciphertext[i - 1] for i in self.IP])
+        ip_result = self.permute(ciphertext, self.IP)
+        left, right = ip_result[:4], ip_result[4:]
 
-        # 第一轮Feistel（使用k2）
-        round1_result = self._feistel_round(ip_result, self.subkeys[1])
+        # 第一轮Feistel网络（使用k2）
+        f_output = self._f_function(right, k2)
+        new_left = self._xor(left, f_output)
+        new_right = right
 
-        # 第二轮Feistel（使用k1）
-        round2_result = self._feistel_round(round1_result, self.subkeys[0])
+        # 交换
+        left, right = new_right, new_left
 
-        # 最终逆置换
-        plaintext = ''.join([round2_result[i - 1] for i in self.IP_INV])
-        return plaintext
+        # 第二轮Feistel网络（使用k1）
+        f_output = self._f_function(right, k1)
+        new_left = self._xor(left, f_output)
+        new_right = right
+
+        # 组合并进行最终置换
+        pre_output = new_left + new_right
+        plaintext = self.permute(pre_output, self.IP_INV)
+
+        # 转换为字符串返回
+        return ''.join(str(bit) for bit in plaintext)
 
     def encrypt_ascii(self, ascii_text):
         """ASCII字符串加密处理
@@ -241,7 +229,9 @@ class S_DES:
         """
         result = []
         for char in ascii_text:
+            # 将字符转换为8位二进制字符串
             byte_str = format(ord(char), '08b')
+            # 加密并添加到结果
             encrypted_byte = self.encrypt(byte_str)
             result.append(encrypted_byte)
         return ''.join(result)
@@ -260,9 +250,10 @@ class S_DES:
         """
         if len(binary_string) % 8 != 0:
             raise ValueError("输入的二进制字符串长度必须是8的倍数")
+
         result = []
         for i in range(0, len(binary_string), 8):
-            byte_str = binary_string[i:i+8]
+            byte_str = binary_string[i:i + 8]
             decrypted_byte = self.decrypt(byte_str)
             try:
                 char_code = int(decrypted_byte, 2)
